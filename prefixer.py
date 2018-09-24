@@ -35,7 +35,7 @@ class App(tk.Frame):
         for file in os.listdir(self.SETTINGS[0]) :
             if fnmatch.fnmatch(file,self.SETTINGS[1]):
                 Reduced.append(file)
-        Reduced = [ item for item in Reduced if ( item != "Sortieren.py") ]
+        Reduced = [ item for item in Reduced if ( item != "prefixer.py") ]
         return Reduced
     ''' aktualisiert den Inhalt des Ordners '''
     def refresh_list_unsorted(self):
