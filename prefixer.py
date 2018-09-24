@@ -1,6 +1,7 @@
 import tkinter as tk
 import os, fnmatch
 import re
+import configparser
 
 '''
 To do:
@@ -11,6 +12,16 @@ To do:
 Bugs:
     - Wenn zwei Dateien dieselbe Nummer haben, kommt es zu einer Dauerschleife
 '''
+
+''' Hole Configuration '''
+
+config = configparser.ConfigParser()
+config.read('settings.ini')
+
+
+''' ENDE / Hole Configuration '''
+
+
 class App(tk.Frame):
     def __init__(self, master = None):
         super().__init__(master)
@@ -21,14 +32,37 @@ class App(tk.Frame):
         self.refresh_list_unsorted()
     ''' Erstellt die Widgets '''
     def create_widgets(self):
-        self.b_start = tk.Button(self)
+
+
+        self.l_folder = tk.Label(self)
+        self.l_folder["text"] = "Dateiordner:", config['DEFAULT']['folder'] 
+        self.l_folder.pack(side = "top")
+
+        self.l_filter = tk.Label(self)
+        self.l_filter["text"] = "Filter:", config['DEFAULT']['filter'] 
+        self.l_filter.pack(side = "top")
+
+        self.list_unsorted = tk.Listbox(self)
+        self.list_unsorted.pack()
+
+        self.b_start = tk.Button(self, fg="red")
         self.b_start["text"] = "Neu Sortieren\nStart"
         self.b_start["command"] = self.sort_start
         self.b_start.pack(side = "top")
-        self.b_quit = tk.Button(self, text="Quit", fg="red",command=root.destroy)
+
+        self.b_test = tk.Button(self)
+        self.b_test["text"] = "Testbutton"
+        self.b_test["command"] = self.testfunktion
+        self.b_test.pack(side = "top")
+
+        self.b_quit = tk.Button(self, text="Quit", command=root.destroy)
         self.b_quit.pack(side="bottom")
-        self.list_unsorted = tk.Listbox(self)
-        self.list_unsorted.pack()
+
+
+    ''' Testfunktion '''
+    def testfunktion(self):
+        print(config['DEFAULT']['filter'])
+
     ''' Holt die Items in einem Angegebenen Ordner (Folder) '''
     def get_items(self):
         Reduced = []
@@ -129,3 +163,13 @@ Erweiterung = '*.txt'
 root = tk.Tk()
 app = App(master = root)
 app.mainloop()
+
+
+''' Setze Configuration '''
+
+config['DEFAULT'] = {'Folder':'./Test/','Filter':'.txt' }
+
+with open('settings.ini', 'w') as configfile:
+    config.write(configfile)
+
+''' ENDE / Setze Configuration '''
