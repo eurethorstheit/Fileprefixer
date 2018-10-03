@@ -44,6 +44,7 @@ class App(tk.Frame):
         self.ITEMS = self.get_items()
         self.create_widgets()
         self.refresh_list_unsorted()
+        self.List_Rename = [] # Liste, in der die alten und neuen Namen stehen
     ''' Erstellt die Widgets '''
     def create_widgets(self):
 
@@ -155,6 +156,7 @@ class App(tk.Frame):
         ''' Trennung von Dateinamen mit Ziffern und ohne Ziffern '''
         List_mit_Ziffern = []
         List_ohne_Ziffern = []
+
         for item in self.ITEMS:
             if(len(item)>1): # wenn der Name bereits eine Ziffer als Prefix und die richtige Bauart hat
                 List_mit_Ziffern.append(item)
@@ -190,26 +192,27 @@ class App(tk.Frame):
         ''' Anfuegen der Ziffernlosen Dateien '''
         for key in List_ohne_Ziffern:
             List_mit_Ziffern.append([key[0], List_mit_Ziffern[-1:][0][1]+1])
-        print(List_mit_Ziffern)
+        
 
         ''' Ziffern neu formatieren '''
         for item in List_mit_Ziffern:
             item[1] = "{0:03d}".format(item[1])
-        print(List_mit_Ziffern)
+        
 
-        ''' Rename der Dateien '''
-        List_Rename = []
+        ''' Rename der Dateien vorbereiten'''
+        self.List_Rename = [] # sicherstellen, dass Liste leer ist        
+
         for key in List_mit_Ziffern:
             if ( len(key) == 3 ):
-                List_Rename.append([key[2],str(key[1])+"_"+str(key[2])])                
+                self.List_Rename.append([key[2],str(key[1])+"_"+str(key[2])])                
 
             elif ( len(key) == 2 ):            
-                List_Rename.append([key[0],str(key[1])+"_"+str(key[0])])                
+                self.List_Rename.append([key[0],str(key[1])+"_"+str(key[0])])                
             else:
                 print("Fehler")
             
             ''' vergessen den Originalnamen im Dictionary zu speichern. Schlecht '''
-        for key in List_Rename:
+        for key in self.List_Rename:
             print(key[0], " " , key[1])
             #os.rename(self.SETTINGS[0]+Filename, self.SETTINGS[0]+Filename)
 
