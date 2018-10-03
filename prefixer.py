@@ -3,19 +3,28 @@ import os, fnmatch
 import re
 import configparser
 from tkinter import messagebox
+from operator import itemgetter
 
 
 '''
 Last Changes:
     - Messagebox eingebaut
     - Redundanzenbehandlung
+    - Umstellung von Dict auf Listen
+        --> Fehler: Originaldateiname fehlt als Information.
+
 To do:
     Filter setzen
     Pfad einstellen
         Configfile für Beides
+            check   
 
+Großer Fehler: 
+    
 Bugs:
     - wenn bereits sortiert und man nochmal drauf klickt, gibt es eine fiese Dauerschleife
+    - dauerschleife, auch wenn nach Sortierung manuell eine Ziffer in der Mitte weggenommen wird und nochmal versucht wird
+    - Problematisch: Eine Datei wurde sogar gelöscht
 '''
 
 ''' Hole Configuration '''
@@ -37,7 +46,6 @@ class App(tk.Frame):
         self.refresh_list_unsorted()
     ''' Erstellt die Widgets '''
     def create_widgets(self):
-
 
         self.l_folder = tk.Label(self)
         self.l_folder["text"] = "Dateiordner:", config['DEFAULT']['folder'] 
@@ -71,26 +79,29 @@ class App(tk.Frame):
 
     ''' Testfunktion '''
     def testfunktion(self):
-        print(config['DEFAULT']['filter'])
+        for item in self.ITEMS:
+            print(item)
+        
 
     ''' Holt die Items in einem Angegebenen Ordner (Folder) '''
     def get_items(self):
         Filtered = []
-        for file in os.listdir(self.SETTINGS[0]) :
-            if fnmatch.fnmatch(file,self.SETTINGS[1]):
-                Filtered.append(file)
-        Filtered = [ item for item in Filtered if ( item != "prefixer.py") ]
+        for item in os.listdir(self.SETTINGS[0]) :
+            if fnmatch.fnmatch(item,self.SETTINGS[1]):
+                match = re.search("(^\d+)(_)(.+)",item)
+                if match:
+                    Filtered.append([item, match.group(1),match.group(3)])
+                else:
+                    Filtered.append([item])
         return Filtered
     ''' aktualisiert den Inhalt des Ordners '''
     def refresh_list_unsorted(self):
         self.list_unsorted.delete(0, tk.END)
+        self.ITEMS = []
         self.ITEMS = self.get_items()
 
         for item in self.ITEMS:
-            self.list_unsorted.insert(tk.END, item)
-    def get_number(self, name = ""):
-        match = re.search("(^\d+)(_)(.+)",name)
-        return int(match.group(1)), match.group(3)
+            self.list_unsorted.insert(tk.END, item[0])
 
     def order_ok(self,StringA,StringB):
         ''' 0 - A<B (ok), 1 - A>B (swap), 2 - A=B (NOK - abort) '''
@@ -104,90 +115,105 @@ class App(tk.Frame):
             return 1
         else:
             return 2
+    def order_ok_2(self,Liste,index = 0):
+        ''' wenn True, dann nichts zu tun '''
+        return Liste[index][1]<Liste[index+1][1]
 
-    ''' Funktion zum Vertauschen vol Elementen '''
+
+    ''' Funktion zum Vertauschen von Elementen '''
     def swap(self,Liste,a,b):
         Liste[a], Liste[b] = Liste[b], Liste[a]
         return Liste  
 
-    def Pre_Sort(self,Liste):
-        ''' Sortieren '''
+    def Pre_Sort_2(self,Liste):
         n = 0
         START = 0
         END = len(Liste)-1
         Redundant_Number = False
         while(n < END-1):
             for n in range(START,END):
-                if ( self.order_ok(Liste[n],Liste[n+1]) == 1 ):
+                if ( self.order_ok_2(Liste,n) == False ):
                     self.swap(Liste,n,n+1)
-                    break
-                elif ( self.order_ok(Liste[n],Liste[n+1]) == 2 ):
-                    Redundant_Number = True
                     break
                 else:
                     pass
-            if Redundant_Number == True:
-                break
-        if Redundant_Number == False:
-            return Liste
-        else:
-            return [ 'Redundant', Liste[n] ]
+        return Liste
+
+    def Redundant( self, Liste = [] ):
+        ''' Check auf Redundanz
+            Return:       
+                -1 - keine Redundanz 
+                Ziffer >= 0 - Position der Redundanz
+        '''
+        for index, item in enumerate(Liste):
+            if (item != Liste[len(Liste)-1]):
+                if (item[1] == Liste[index+1][1]):
+                    return index
+        return -1        
 
     def sort_start(self):
+        ''' Trennung von Dateinamen mit Ziffern und ohne Ziffern '''
         List_mit_Ziffern = []
         List_ohne_Ziffern = []
-        for name in self.ITEMS:
-            if(re.search("(^\d+)(_)(.+)",name)): # wenn der Name bereits eine Ziffer als Prefix und die richtige Bauart hat
-                List_mit_Ziffern.append(name)
+        for item in self.ITEMS:
+            if(len(item)>1): # wenn der Name bereits eine Ziffer als Prefix und die richtige Bauart hat
+                List_mit_Ziffern.append(item)
             else:
-                List_ohne_Ziffern.append(name)
+                List_ohne_Ziffern.append(item)
 
-        List_mit_Ziffern = self.Pre_Sort(List_mit_Ziffern) # Vorsortierung, damit es in den späteren Algorithmen keine Probleme gibt
 
-        if List_mit_Ziffern[0] == 'Redundant':
-            messagebox.showinfo("Information","Der Prefix der Datei\n\n\t"+List_mit_Ziffern[1]+ "\n\nscheint doppelt vorzukommen. Bitte manuell korrigieren, neu laden klicken und den Sortiervorgang erneut starten")
-        else:
+        ''' Sortierung von List_mit_Ziffern nach Ziffern '''
+        # Zahl von String zu Integer casten um diese anschließend zu sortieren'''
+        for item in List_mit_Ziffern:
+            item[1] = int(item[1])
+        List_mit_Ziffern = sorted(List_mit_Ziffern,key = itemgetter(1)) # soriert nach Ziffer - zweite Stelle innerhalb der Items
+        # Check auf Redundanz
+        pos = self.Redundant(List_mit_Ziffern)         
+        if (pos > -1):
+            messagebox.showinfo("Information","Der Prefix \"" + str(List_mit_Ziffern[pos][0])+ "\"\nscheint doppelt vorzukommen. Bitte manuell korrigieren, \n\"neu laden\" klicken und den Sortiervorgang erneut starten")
+            return 0
+        ''' Gesamtliste auf 1 normieren '''
 
-            D_List_mit_Ziffern = dict.fromkeys(List_mit_Ziffern) # Umwandeln in ein Dictionary
-        
-            for index, key in enumerate(D_List_mit_Ziffern):
-                D_List_mit_Ziffern[key] = list(self.get_number(List_mit_Ziffern[index]))
+        Smallest_Number = List_mit_Ziffern[0][1]
+        Normiersubtrahent = Smallest_Number - 1 # um diesen Wert muss jede Position durch Subtraktion reduziert werden
+        for item in List_mit_Ziffern:
+            item[1] = item[1] - Normiersubtrahent
 
-            ''' Start der Gesamtliste auf 1 normieren '''
-            if (len(D_List_mit_Ziffern) > 0 ) :
-                while( next(iter(D_List_mit_Ziffern.values()))[0] > 1 ): # wenn das erste Element der Werte ungleich 1
-                    for key in D_List_mit_Ziffern.keys():
-                        D_List_mit_Ziffern[key][0] = D_List_mit_Ziffern[key][0]-1 # ziehe überall eins ab
-                ''' ENDE / Start der Gesamtliste auf 1 normieren '''
-                ''' Beseitigen von Lücken in der Sortierung '''
-                n = 0
-                d_keys = list(D_List_mit_Ziffern.keys())
-
-                while(n < len(D_List_mit_Ziffern)-1): 
-                    if ( D_List_mit_Ziffern[d_keys[n+1]][0] == D_List_mit_Ziffern[d_keys[n]][0] + 1 ): # gehe eins weiter, wenn das nächste Element eins weiter ist
-                        n+=1
-                    else: # ziehe bei der Lücke eins ab
-                        D_List_mit_Ziffern[d_keys[n+1]][0]-=1
-
-                ''' ENDE / Beseitigen von Lücken in der Sortierung '''
-                ''' Prefixe auf 1 normiert und Lücken beseitigt in D_List_mit_Ziffern'''
-            ''' Ziffernlose Dateien im Dictionary hinten anfügen '''
-            n = len(D_List_mit_Ziffern) + 1
-            for key in List_ohne_Ziffern:
-                D_List_mit_Ziffern[key] = [n,key]
+        ''' Beseitigen von Lücken in der Sortierung '''
+        n = 0
+        while(n < len(List_mit_Ziffern)-1): 
+            if ( List_mit_Ziffern[n+1][1] == List_mit_Ziffern[n][1] + 1 ): # gehe eins weiter, wenn das nächste Element eins weiter ist
                 n+=1
-            ''' ENDE / Ziffernlose Dateien im Dictionary hinten anfügen '''
+            else: # ziehe bei der Lücke eins ab
+                List_mit_Ziffern[n+1][1] -= 1
 
-            ''' Normalisieren der Prefixe auf Format xxx_ '''
-            for key in D_List_mit_Ziffern:
-                D_List_mit_Ziffern[key][0] = "{0:03d}".format(D_List_mit_Ziffern[key][0])
-            ''' ENDE / Normalisieren der Prefixe auf Format xxx_ '''
+        ''' Anfuegen der Ziffernlosen Dateien '''
+        for key in List_ohne_Ziffern:
+            List_mit_Ziffern.append([key[0], List_mit_Ziffern[-1:][0][1]+1])
+        print(List_mit_Ziffern)
 
-            for key in D_List_mit_Ziffern:
-                os.rename(self.SETTINGS[0]+key, self.SETTINGS[0]+D_List_mit_Ziffern[key][0]+"_"+D_List_mit_Ziffern[key][1])
+        ''' Ziffern neu formatieren '''
+        for item in List_mit_Ziffern:
+            item[1] = "{0:03d}".format(item[1])
+        print(List_mit_Ziffern)
 
-            self.refresh_list_unsorted()
-            messagebox.showinfo("Information","Liste ist neu sortiert. Veränderungen sind in log_sort.log gespeichert")
+        ''' Rename der Dateien '''
+        List_Rename = []
+        for key in List_mit_Ziffern:
+            if ( len(key) == 3 ):
+                List_Rename.append([key[2],str(key[1])+"_"+str(key[2])])                
+
+            elif ( len(key) == 2 ):            
+                List_Rename.append([key[0],str(key[1])+"_"+str(key[0])])                
+            else:
+                print("Fehler")
+            
+            ''' vergessen den Originalnamen im Dictionary zu speichern. Schlecht '''
+        for key in List_Rename:
+            print(key[0], " " , key[1])
+            #os.rename(self.SETTINGS[0]+Filename, self.SETTINGS[0]+Filename)
+
+                
 
 Ordner = "C:\\Users\\Thorsten\\Documents\\Python"
 Erweiterung = '*.txt'
