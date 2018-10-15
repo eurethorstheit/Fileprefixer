@@ -4,7 +4,7 @@ import re
 import configparser
 from tkinter import messagebox
 from operator import itemgetter
-
+from sys import platform
 
 '''
 Last Changes:
@@ -27,20 +27,32 @@ Bugs:
     - Problematisch: Eine Datei wurde sogar gelöscht
 '''
 
-''' Hole Configuration '''
+''' Globale Variablen '''
 
+G_Inf_OS = ""  # Welches OS wird verwendet: "Linux", "Windows", "N/A"
+G_Startordner = "" # Das Verzeichnis, in dem gearbeitet wird. Wird aus der settings.ini gelesen
+G_Filter = "" # Filter bzw. Dateierweiterung. Nach diesem Wert wird gefiltert, zum Beispiel *.txt. Wird aus der settings.ini gelesen
+
+''' Hole Configuration '''
 config = configparser.ConfigParser()
 config.read('settings.ini')
-
-
 ''' ENDE / Hole Configuration '''
 
+''' Initialisiere OS '''
+if platform == "linux" or platform == "linux2":
+    G_Inf_OS = "Linux"
+elif platform == "win32":
+    G_Inf_OS = "Windows"
+else:
+    G_Inf_OS = "N/A"
+''' ENDE / Initialisiere Platform '''
 
+''' Die Hauptklasse '''
 class App(tk.Frame):
     def __init__(self, master = None):
         super().__init__(master)
         self.pack()
-        self.SETTINGS = ['./Test/','*.txt'] # [Ordner, Erweiterung]
+        self.SETTINGS = ['./Test/','*.txt'] # [Ordner, Dateierweiterung]
         self.ITEMS = self.get_items()
         self.create_widgets()
         self.refresh_list_unsorted()
@@ -80,9 +92,7 @@ class App(tk.Frame):
 
     ''' Testfunktion '''
     def testfunktion(self):
-        for item in self.ITEMS:
-            print(item)
-        
+        print(G_Inf_OS)
 
     ''' Holt die Items in einem Angegebenen Ordner (Folder) '''
     def get_items(self):
