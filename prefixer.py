@@ -8,9 +8,8 @@ from operator import itemgetter
 
 '''
 Last Changes:
-    - Sortierung für bereits nummerierte Dateien wieder
-      unabhängig von der Nummer
-    - Fehlerbehandlung wenn Verzeichnis nicht existiert
+    - Sortierung vereinfacht per Sort Key
+    - Bereits sortierte Dateien werden nicht neu sortiert
 
 To do:
     Filter setzen
@@ -57,24 +56,23 @@ class FileRenamer:
         return [i[0] for i in self.items]
 
     def rename(self):
-        sorted_list = (
-            # sort numbered items at first
-            sorted((i for i in self.items if i[2]),
-                   key=itemgetter(1)) +
-            # sort unnumbered items at last
-            sorted((i for i in self.items if not i[2]),
-                   key=itemgetter(1))
-        )
+        if any(not x[2] for x in self.items):
+            # sort all already numbered files at first
+            sorted_list = sorted(
+                self.items, key=lambda x: str(int(not x[2])) + x[1])
 
-        for number, (orig, base, _) in enumerate(sorted_list, 1):
-            renamed = "{0:03d}_{1}".format(number, base)
-            if orig == renamed:
-                print("renaming", orig, "skipped")
-            else:
-                print("renaming", orig, "->", renamed)
-                os.rename(
-                    os.path.join(self.directory, orig),
-                    os.path.join(self.directory, renamed))
+            # renumber and rename files
+            for number, (orig, base, _) in enumerate(sorted_list, 1):
+                renamed = "{0:03d}_{1}".format(number, base)
+                if orig == renamed:
+                    print("renaming", orig, "skipped")
+                else:
+                    print("renaming", orig, "->", renamed)
+                    os.rename(
+                        os.path.join(self.directory, orig),
+                        os.path.join(self.directory, renamed))
+        else:
+            print("files already sorted")
 
 
 class App(tk.Frame):
