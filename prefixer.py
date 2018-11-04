@@ -8,7 +8,9 @@ from operator import itemgetter
 
 '''
 Last Changes:
-    - Rename-Logik in separate Klasse ausgelagert
+    - Sortierung für bereits nummerierte Dateien wieder
+      unabhängig von der Nummer
+    - Fehlerbehandlung wenn Verzeichnis nicht existiert
 
 To do:
     Filter setzen
@@ -39,21 +41,27 @@ class FileRenamer:
     def refresh(self):
         self.items = []
 
-        for item in sorted(os.listdir(self.directory)):
+        try:
+            files = os.listdir(self.directory)
+        except FileNotFoundError:
+            print("directory", self.directory, "does not exist")
+            files = []
+        
+        for item in sorted(files):
             if fnmatch.fnmatch(item, self.filter):
                 match = re.search(self.regex, item)
                 if match:
-                    # (orig, base, number or None)
-                    self.items.append((item, match.group(2), match.group(1)))
+                    # (orig, base, if numbered)
+                    self.items.append((item, match.group(2), bool(match.group(1))))
 
         return [i[0] for i in self.items]
 
     def rename(self):
         sorted_list = (
-            # sort numbered items by existimg number
+            # sort numbered items at first
             sorted((i for i in self.items if i[2]),
-                   key=itemgetter(2)) +
-            # sort unnumbered items by name
+                   key=itemgetter(1)) +
+            # sort unnumbered items at last
             sorted((i for i in self.items if not i[2]),
                    key=itemgetter(1))
         )
