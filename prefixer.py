@@ -1,245 +1,135 @@
-import tkinter as tk
-import os, fnmatch
+''' prefixer.py '''
+import os
+import fnmatch
 import re
 import configparser
-from tkinter import messagebox
+import tkinter as tk
 from operator import itemgetter
-from sys import platform
 
 '''
 Last Changes:
-    - Messagebox eingebaut
-    - Redundanzenbehandlung
-    - Umstellung von Dict auf Listen
-        --> Fehler: Originaldateiname fehlt als Information.
+    - Linter-Warnungen behoben
+    - Kein globaler Code
+    - Nicht verwendeten Code entfernt
+    - Einlesen sortierter Dateiliste
+    - Regex gehärtet
+    - Widgets root-Windows zugeordnet, Dateiliste Fenster-füllend
+    - Sortierung/Umbenennung vereinfacht
+    - Dateiliste wird nach Umbenennung aktualisiert
 
 To do:
     Filter setzen
     Pfad einstellen
         Configfile für Beides
-            check   
+            check
 
-Großer Fehler: 
-    
+Großer Fehler:
+
 Bugs:
-    - wenn bereits sortiert und man nochmal drauf klickt, gibt es eine fiese Dauerschleife
-    - dauerschleife, auch wenn nach Sortierung manuell eine Ziffer in der Mitte weggenommen wird und nochmal versucht wird
-    - Problematisch: Eine Datei wurde sogar gelöscht
 '''
 
-''' Globale Variablen '''
 
-G_Inf_OS = ""  # Welches OS wird verwendet: "Linux", "Windows", "N/A"
-G_Startordner = "" # Das Verzeichnis, in dem gearbeitet wird. Wird aus der settings.ini gelesen
-G_Filter = "" # Filter bzw. Dateierweiterung. Nach diesem Wert wird gefiltert, zum Beispiel *.txt. Wird aus der settings.ini gelesen
-
-''' Hole Configuration '''
-config = configparser.ConfigParser()
-config.read('settings.ini')
-''' ENDE / Hole Configuration '''
-
-''' Initialisiere OS '''
-if platform == "linux" or platform == "linux2":
-    G_Inf_OS = "Linux"
-elif platform == "win32":
-    G_Inf_OS = "Windows"
-else:
-    G_Inf_OS = "N/A"
-''' ENDE / Initialisiere Platform '''
-
-''' Die Hauptklasse '''
 class App(tk.Frame):
-    def __init__(self, master = None):
+    ''' Die Hauptklasse '''
+
+    def __init__(self, config, master=None):
         super().__init__(master)
+        self.config = config
         self.pack()
-        self.SETTINGS = ['./Test/','*.txt'] # [Ordner, Dateierweiterung]
-        self.ITEMS = self.get_items()
+        # [Ordner, Dateierweiterung]
+        self.setting = [
+            self.config['DEFAULT']['folder'],
+            "*" + self.config['DEFAULT']['filter']]
+        self.regex = (
+            r"^(\d+_){0,1}(.+" +
+            re.escape(self.config['DEFAULT']['filter']) +
+            r")$")
+
         self.create_widgets()
         self.refresh_list_unsorted()
-        self.List_Rename = [] # Liste, in der die alten und neuen Namen stehen
-    ''' Erstellt die Widgets '''
+
     def create_widgets(self):
+        ''' Erstellt die Widgets '''
 
-        self.l_folder = tk.Label(self)
-        self.l_folder["text"] = "Dateiordner:", config['DEFAULT']['folder'] 
-        self.l_folder.pack(side = "top")
+        self.l_folder = tk.Label(self.master)
+        self.l_folder["text"] = "Dateiordner:", self.config['DEFAULT']['folder']
+        self.l_folder.pack(side="top")
 
-        self.l_filter = tk.Label(self)
-        self.l_filter["text"] = "Filter:", config['DEFAULT']['filter'] 
-        self.l_filter.pack(side = "top")
+        self.l_filter = tk.Label(self.master)
+        self.l_filter["text"] = "Filter:", self.config['DEFAULT']['filter']
+        self.l_filter.pack(side="top")
 
-        self.list_unsorted = tk.Listbox(self)
-        self.list_unsorted.pack()
+        self.list_unsorted = tk.Listbox(self.master)
+        self.list_unsorted.pack(fill=tk.BOTH, expand=1)
 
-        self.b_refresh = tk.Button(self)
-        self.b_refresh["text"] = "Liste neu laden"
+        self.b_refresh = tk.Button(self.master)
+        self.b_refresh["text"] = "Liste aktualisieren"
         self.b_refresh["command"] = self.refresh_list_unsorted
-        self.b_refresh.pack(side = "top")
+        self.b_refresh.pack(side="top")
 
-        self.b_start = tk.Button(self, fg="red")
-        self.b_start["text"] = "Neu Sortieren\nStart"
+        self.b_start = tk.Button(self.master, fg="red")
+        self.b_start["text"] = "Sortieren"
         self.b_start["command"] = self.sort_start
-        self.b_start.pack(side = "top")
+        self.b_start.pack(side="top")
 
-        self.b_test = tk.Button(self)
-        self.b_test["text"] = "Testbutton"
-        self.b_test["command"] = self.testfunktion
-        self.b_test.pack(side = "top")
-
-        self.b_quit = tk.Button(self, text="Quit", command=root.destroy)
+        self.b_quit = tk.Button(self.master, text="Quit", command=root.destroy)
         self.b_quit.pack(side="bottom")
 
-
-    ''' Testfunktion '''
-    def testfunktion(self):
-        print(G_Inf_OS)
-
-    ''' Holt die Items in einem Angegebenen Ordner (Folder) '''
     def get_items(self):
-        Filtered = []
-        for item in os.listdir(self.SETTINGS[0]) :
-            if fnmatch.fnmatch(item,self.SETTINGS[1]):
-                match = re.search("(^\d+)(_)(.+)",item)
+        ''' Holt die Items in einem Angegebenen Ordner (Folder) '''
+        filtered = []
+
+        for item in sorted(os.listdir(self.setting[0])):
+            if fnmatch.fnmatch(item, self.setting[1]):
+                match = re.search(self.regex, item)
                 if match:
-                    Filtered.append([item, match.group(1),match.group(3)])
-                else:
-                    Filtered.append([item])
-        return Filtered
-    ''' aktualisiert den Inhalt des Ordners '''
+                    # (orig, base, number or None)
+                    filtered.append((item, match.group(2), match.group(1)))
+
+        return filtered
+
     def refresh_list_unsorted(self):
+        ''' aktualisiert den Inhalt des Ordners '''
+        self.items = self.get_items()
+
         self.list_unsorted.delete(0, tk.END)
-        self.ITEMS = []
-        self.ITEMS = self.get_items()
-
-        for item in self.ITEMS:
-            self.list_unsorted.insert(tk.END, item[0])
-
-    def order_ok(self,StringA,StringB):
-        ''' 0 - A<B (ok), 1 - A>B (swap), 2 - A=B (NOK - abort) '''
-        A = re.search("(^\d+)(_)(.+)",StringA)
-        B = re.search("(^\d+)(_)(.+)",StringB)
-        A = int(A.group(1))
-        B = int(B.group(1))
-        if A<B:
-            return 0
-        elif A>B:
-            return 1
-        else:
-            return 2
-    def order_ok_2(self,Liste,index = 0):
-        ''' wenn True, dann nichts zu tun '''
-        return Liste[index][1]<Liste[index+1][1]
-
-
-    ''' Funktion zum Vertauschen von Elementen '''
-    def swap(self,Liste,a,b):
-        Liste[a], Liste[b] = Liste[b], Liste[a]
-        return Liste  
-
-    def Pre_Sort_2(self,Liste):
-        n = 0
-        START = 0
-        END = len(Liste)-1
-        Redundant_Number = False
-        while(n < END-1):
-            for n in range(START,END):
-                if ( self.order_ok_2(Liste,n) == False ):
-                    self.swap(Liste,n,n+1)
-                    break
-                else:
-                    pass
-        return Liste
-
-    def Redundant( self, Liste = [] ):
-        ''' Check auf Redundanz
-            Return:       
-                -1 - keine Redundanz 
-                Ziffer >= 0 - Position der Redundanz
-        '''
-        for index, item in enumerate(Liste):
-            if (item != Liste[len(Liste)-1]):
-                if (item[1] == Liste[index+1][1]):
-                    return index
-        return -1        
+        self.list_unsorted.insert(tk.END, *[i[0] for i in self.items])
 
     def sort_start(self):
-        ''' Trennung von Dateinamen mit Ziffern und ohne Ziffern '''
-        List_mit_Ziffern = []
-        List_ohne_Ziffern = []
+        sorted_list = (
+            # sort numbered items by existimg number
+            sorted((i for i in self.items if i[2]),
+                   key=itemgetter(2)) +
+            # sort unnumbered items by name
+            sorted((i for i in self.items if not i[2]),
+                   key=itemgetter(1))
+        )
 
-        for item in self.ITEMS:
-            if(len(item)>1): # wenn der Name bereits eine Ziffer als Prefix und die richtige Bauart hat
-                List_mit_Ziffern.append(item)
+        for number, (orig, base, _) in enumerate(sorted_list, 1):
+            renamed = "{0:03d}_{1}".format(number, base)
+            if orig == renamed:
+                print(orig, "skipped")
             else:
-                List_ohne_Ziffern.append(item)
+                print(orig, "->", renamed)
+                os.rename(
+                    os.path.join(self.setting[0], orig),
+                    os.path.join(self.setting[0], renamed))
+        self.refresh_list_unsorted()
 
 
-        ''' Sortierung von List_mit_Ziffern nach Ziffern '''
-        # Zahl von String zu Integer casten um diese anschließend zu sortieren'''
-        for item in List_mit_Ziffern:
-            item[1] = int(item[1])
-        List_mit_Ziffern = sorted(List_mit_Ziffern,key = itemgetter(1)) # soriert nach Ziffer - zweite Stelle innerhalb der Items
-        # Check auf Redundanz
-        pos = self.Redundant(List_mit_Ziffern)         
-        if (pos > -1):
-            messagebox.showinfo("Information","Der Prefix \"" + str(List_mit_Ziffern[pos][0])+ "\"\nscheint doppelt vorzukommen. Bitte manuell korrigieren, \n\"neu laden\" klicken und den Sortiervorgang erneut starten")
-            return 0
-        ''' Gesamtliste auf 1 normieren '''
+if __name__ == "__main__":
+    # get configuration
+    config = configparser.ConfigParser()
+    config.read('settings.ini')
 
-        Smallest_Number = List_mit_Ziffern[0][1]
-        Normiersubtrahent = Smallest_Number - 1 # um diesen Wert muss jede Position durch Subtraktion reduziert werden
-        for item in List_mit_Ziffern:
-            item[1] = item[1] - Normiersubtrahent
+    # set fallback configuration
+    config.setdefault('DEFAULT', {
+        'Folder': './Test/',
+        'Filter': '.txt'})
 
-        ''' Beseitigen von Lücken in der Sortierung '''
-        n = 0
-        while(n < len(List_mit_Ziffern)-1): 
-            if ( List_mit_Ziffern[n+1][1] == List_mit_Ziffern[n][1] + 1 ): # gehe eins weiter, wenn das nächste Element eins weiter ist
-                n+=1
-            else: # ziehe bei der Lücke eins ab
-                List_mit_Ziffern[n+1][1] -= 1
+    root = tk.Tk()
+    app = App(master=root, config=config)
+    app.mainloop()
 
-        ''' Anfuegen der Ziffernlosen Dateien '''
-        for key in List_ohne_Ziffern:
-            List_mit_Ziffern.append([key[0], List_mit_Ziffern[-1:][0][1]+1])
-        
-
-        ''' Ziffern neu formatieren '''
-        for item in List_mit_Ziffern:
-            item[1] = "{0:03d}".format(item[1])
-        
-
-        ''' Rename der Dateien vorbereiten'''
-        self.List_Rename = [] # sicherstellen, dass Liste leer ist        
-
-        for key in List_mit_Ziffern:
-            if ( len(key) == 3 ):
-                self.List_Rename.append([key[2],str(key[1])+"_"+str(key[2])])                
-
-            elif ( len(key) == 2 ):            
-                self.List_Rename.append([key[0],str(key[1])+"_"+str(key[0])])                
-            else:
-                print("Fehler")
-            
-            ''' vergessen den Originalnamen im Dictionary zu speichern. Schlecht '''
-        for key in self.List_Rename:
-            print(key[0], " " , key[1])
-            #os.rename(self.SETTINGS[0]+Filename, self.SETTINGS[0]+Filename)
-
-                
-
-Ordner = "C:\\Users\\Thorsten\\Documents\\Python"
-Erweiterung = '*.txt'
-root = tk.Tk()
-app = App(master = root)
-app.mainloop()
-
-
-''' Setze Configuration '''
-
-config['DEFAULT'] = {'Folder':'./Test/','Filter':'.txt' }
-
-with open('settings.ini', 'w') as configfile:
-    config.write(configfile)
-
-''' ENDE / Setze Configuration '''
+    with open('settings.ini', 'w') as configfile:
+        config.write(configfile)
